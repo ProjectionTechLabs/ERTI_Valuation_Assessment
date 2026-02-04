@@ -197,6 +197,55 @@ export default function AssessmentForm() {
 		}
 	};
 
+	const submitAssessmentToBackend = async () => {
+		const stage =
+			VRI <= 40
+				? "Foundation Stage"
+				: VRI <= 60
+					? "Structured Stage"
+					: VRI <= 80
+						? "Scalable Stage"
+						: "Valuation Ready";
+
+		const apiUrl =
+			window.location.hostname === "localhost"
+				? import.meta.env.VITE_LOCAL_URL
+				: import.meta.env.VITE_PROD_URL;
+
+		const res = await fetch(`${apiUrl}/api/form/submit`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				form,
+				meta: {
+					VRI,
+					stage,
+					pillars: pillarRows,
+				},
+				answers: answersArr, // 🔥 FULL QUESTION DATA
+			}),
+		});
+
+		if (!res.ok) {
+			const err = await res.json();
+			throw new Error(err.message || "Submission failed");
+		}
+
+		return res.json();
+	};
+
+	useEffect(() => {
+		if (step === 3 && completed) {
+			submitAssessmentToBackend()
+				.then(() => {
+					console.log("✅ Assessment saved to backend");
+				})
+				.catch((err) => {
+					console.error("❌ Backend submit failed:", err);
+				});
+		}
+	}, [step, completed]);
+
 	const submitToBackendAndEmail = async () => {
 		if (isLive) {
 			alert("Email sending will be enabled once the project is fully live.");
