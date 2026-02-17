@@ -55,6 +55,12 @@ export async function saveAssessmentToSheet({ form, meta, answers }) {
 		TeamSize: form.teamSize,
 		IsFounder: form.isFounder,
 
+		// Only add founder details if isFounder is "No"
+
+		FounderName: form.isFounder === "No" ? (form.founderName ?? "") : "",
+		FounderEmail: form.isFounder === "No" ? (form.founderEmail ?? "") : "",
+		FounderContact: form.isFounder === "No" ? (form.founderContact ?? "") : "",
+
 		VRI: meta.VRI,
 		Stage: meta.stage,
 
