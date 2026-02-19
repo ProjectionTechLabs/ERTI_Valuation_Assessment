@@ -16,6 +16,8 @@
     "axios": "^1.13.2",
     "daisyui": "^5.5.5",
     "emailjs": "^4.0.3",
+    "html2canvas-pro": "^1.6.7",
+    "jspdf": "^4.2.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

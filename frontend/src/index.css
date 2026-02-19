@@ -6,3 +6,38 @@
 body {
 	font-family: "Poppins", sans-serif;
 }
+
+.pdf-exporting .no-print {
+	display: none !important;
+}
+
+.pdf-mode {
+	width: 794px !important;
+	max-width: 794px !important;
+	background: white !important;
+}
+
+.pdf-mode * {
+	max-width: 100% !important;
+	box-sizing: border-box !important;
+}
+
+.pdf-mode .overflow-x-auto {
+	overflow: visible !important;
+}
+
+.pdf-mode table {
+	width: 100% !important;
+	table-layout: fixed !important;
+}
+
+.pdf-mode td,
+.pdf-mode th {
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.avoid-break {
+	break-inside: avoid;
+	page-break-inside: avoid;
+}

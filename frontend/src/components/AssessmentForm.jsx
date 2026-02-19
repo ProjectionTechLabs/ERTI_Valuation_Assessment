@@ -8,6 +8,9 @@ import { calculateVRIFromAnswers } from "../utils/calculateScore";
 import { generateValuationPdfBlob } from "../utils/generatePdfFront";
 import { openPdfInNewTab } from "../utils/openPdf";
 import { PILLAR_CONTENT } from "../utils/pillarExplanations.js";
+import html2canvas from "html2canvas-pro";
+import jsPDF from "jspdf";
+import { useRef } from "react";
 
 const LS = {
 	STEP: "vr_step",
@@ -23,18 +26,21 @@ const defaultForm = {
 	contact: "",
 	email: "",
 	companyName: "",
-	industry: "", //
-	designation: "",
-	city: "",
-	businessType: "",
-	teamSize: "",
-	isFounder: "",
-	founderName: "",
-	founderEmail: "",
-	founderContact: "",
+
+	// Hide as of now
+	industry: "empty",
+	designation: "empty",
+	city: "empty",
+	businessType: "empty",
+	teamSize: "empty",
+	isFounder: "empty",
+	founderName: "empty",
+	founderEmail: "empty",
+	founderContact: "empty",
 };
 
 export default function AssessmentForm() {
+	const reportRef = useRef(null);
 	const [emailLoading, setEmailLoading] = useState(false);
 	const [downloadLoading, setDownloadLoading] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -542,7 +548,11 @@ export default function AssessmentForm() {
 		"If you seek to improve your valuation, this section invites you to pause, reflect, and act with intent. Chanakya’s Roadmap to Strengthen Valuation is not a list of generic recommendations; it is a structured path rooted in the Arthashastra that helps you consciously strengthen the foundations of your enterprise before engaging investors. For each Saptang pillar, this section provides deep Chanakya Strategic Guidance explaining how Kautilya defined and viewed the pillar, the philosophical and practical role it played in sustaining a kingdom, and the leadership behaviour and institutional design expected under it. This is followed by Integrated Valuation Insights that translate ancient wisdom into investor-grade language—showing how the strength or weakness of the pillar impacts valuation, what risks arise when it is underdeveloped, and what valuation premiums emerge when it is strong. Reference Sutra(s) with their one-line meanings anchor each insight in original Arthashastra thought, ensuring conceptual integrity. Finally, the Founder Self-Assessment presents five Kautilya-aligned qualities in a reflective format, allowing you to introspect, rate yourself honestly on a 1–5 scale, and identify precise areas for improvement. Taken together, this roadmap transforms valuation from a passive outcome into an active leadership discipline, where strengthening the enterprise precedes seeking capital—and confidence replaces negotiation.";
 
 	return (
-		<div className="min-h-screen p-2 sm:p-6 flex justify-center bg-white text-gray-900">
+		<div
+			className={`p-2 sm:p-6 flex justify-center bg-white text-gray-900 ${
+				step === 1 ? "min-h-screen items-center" : ""
+			}`}
+		>
 			<div className="w-full max-w-4xl bg-white border border-gray-200 shadow-xl rounded-2xl p-8">
 				<div className="flex flex-col justify-between items-start">
 					{step === 3 && (
@@ -613,7 +623,7 @@ export default function AssessmentForm() {
 								onChange={updateForm}
 								className="input input-bordered w-full rounded-lg shadow-sm md:col-span-2 focus:ring focus:ring-primary/20"
 							/>
-							<select
+							{/* <select
 								name="industry"
 								value={form.industry}
 								onChange={updateForm}
@@ -678,10 +688,10 @@ export default function AssessmentForm() {
 								<option value="">Are you a Founder? *</option>
 								<option value="Yes">Yes</option>
 								<option value="No">No</option>
-							</select>
+							</select> */}
 						</div>
 
-						{form.isFounder === "No" && (
+						{/* {form.isFounder === "No" && (
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
 								<input
 									name="founderName"
@@ -705,7 +715,7 @@ export default function AssessmentForm() {
 									className="input input-bordered w-full rounded-lg shadow-sm focus:ring focus:ring-primary/20"
 								/>
 							</div>
-						)}
+						)} */}
 
 						<div className="flex justify-end mt-6">
 							<button
@@ -985,53 +995,123 @@ export default function AssessmentForm() {
 						// };
 
 						const handleDownloadPdf = async () => {
-							if (form.developerKey !== "123") {
-								alert("You are not authorized to generate the PDF report.");
-								return;
-							}
 							try {
 								setDownloadLoading(true);
 
-								const assessmentDate = new Date().toLocaleDateString("en-GB", {
-									day: "2-digit",
-									month: "short",
-									year: "numeric",
+								const element = reportRef.current;
+								if (!element) {
+									alert("Report not found.");
+									return;
+								}
+
+								document.body.classList.add("pdf-exporting");
+
+								await new Promise((r) => setTimeout(r, 300));
+
+								// ✅ clone report
+								const cloned = element.cloneNode(true);
+
+								// ✅ apply pdf-mode only on clone
+								cloned.classList.add("pdf-mode");
+
+								// wrapper (offscreen)
+								const wrapper = document.createElement("div");
+								wrapper.style.position = "fixed";
+								wrapper.style.left = "-9999px";
+								wrapper.style.top = "0px";
+								wrapper.style.width = "794px";
+								wrapper.style.background = "#ffffff";
+								wrapper.style.boxSizing = "border-box";
+								wrapper.style.padding = "0px";
+								wrapper.style.overflow = "hidden";
+
+								// make clone fit wrapper
+								cloned.style.width = "100%";
+								cloned.style.maxWidth = "100%";
+
+								wrapper.appendChild(cloned);
+								document.body.appendChild(wrapper);
+
+								await new Promise((r) => setTimeout(r, 600));
+
+								// ✅ capture CLONE, not wrapper
+								const canvas = await html2canvas(cloned, {
+									scale: 2,
+									useCORS: true,
+									allowTaint: true,
+									backgroundColor: "#ffffff",
 								});
 
-								const submission = {
-									form: { ...form, assessmentDate },
-									answers: answersArr,
-									VRI,
-									stage: meta.stage,
-									stageMeaning: meta.meaning,
-									pillars: pillarRows,
-									section5Data, // 🔥 THIS IS KEY
-									category:
-										VRI <= 40
-											? "Foundation Stage"
-											: VRI <= 60
-												? "Structured Stage"
-												: VRI <= 80
-													? "Scalable Stage"
-													: "Valuation Ready",
-								};
+								document.body.removeChild(wrapper);
 
-								const { url } = await generateValuationPdfBlob(submission, {
-									logoUrl: logo, // your imported logo from assets
-								});
+								const pdf = new jsPDF("p", "mm", "a4");
+								const pdfWidth = 210;
+								const pdfHeight = 297;
 
-								openPdfInNewTab(url);
-								setTimeout(() => URL.revokeObjectURL(url), 60_000);
+								// ✅ margins
+								const marginX = 10;
+								const marginTop = 10;
+								const usableWidth = pdfWidth - marginX * 2;
+								const usableHeight = pdfHeight - marginTop * 2;
+
+								const canvasWidth = canvas.width;
+								const canvasHeight = canvas.height;
+
+								const ratio = usableWidth / canvasWidth;
+								const pageHeightPx = Math.floor(usableHeight / ratio);
+
+								const totalPages = Math.ceil(canvasHeight / pageHeightPx);
+
+								for (let page = 0; page < totalPages; page++) {
+									const pageCanvas = document.createElement("canvas");
+									const ctx = pageCanvas.getContext("2d");
+
+									pageCanvas.width = canvasWidth;
+									pageCanvas.height = Math.min(
+										pageHeightPx,
+										canvasHeight - page * pageHeightPx,
+									);
+
+									ctx.drawImage(
+										canvas,
+										0,
+										page * pageHeightPx,
+										canvasWidth,
+										pageCanvas.height,
+										0,
+										0,
+										canvasWidth,
+										pageCanvas.height,
+									);
+
+									const pageImg = pageCanvas.toDataURL("image/jpeg", 0.95);
+
+									if (page > 0) pdf.addPage();
+
+									const pageHeightMm = pageCanvas.height * ratio;
+
+									pdf.addImage(
+										pageImg,
+										"JPEG",
+										marginX,
+										marginTop,
+										usableWidth,
+										pageHeightMm,
+									);
+								}
+
+								pdf.save(`VER_${form.companyName || "Report"}.pdf`);
 							} catch (err) {
-								console.error("PDF Error:", err);
-								alert(err?.message || "Failed to generate PDF");
+								console.error("PDF ERROR:", err);
+								alert("PDF export failed. Check console.");
 							} finally {
+								document.body.classList.remove("pdf-exporting");
 								setDownloadLoading(false);
 							}
 						};
 
 						return (
-							<div className="max-w-5xl mx-auto">
+							<div ref={reportRef} className="max-w-5xl mx-auto">
 								{/* Header */}
 
 								<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6 text-center sm:text-left">
@@ -1192,6 +1272,76 @@ export default function AssessmentForm() {
 									</div>
 								</section>
 
+								<section className="mt-14">
+									<h1 className="text-2xl font-bold mb-10">
+										Valuation Enhancement Analysis of Your Company
+									</h1>
+
+									{section5Data.map((pillar) => (
+										<div key={pillar.pillarKey} className="mb-16">
+											{/* Pillar Header */}
+											<div className="mb-6">
+												<h2 className="text-xl font-semibold mb-1">
+													{pillar.label}
+												</h2>
+
+												<div className="flex items-center gap-3 text-sm text-gray-600">
+													<span className="px-3 py-1 rounded-full bg-gray-100 font-medium">
+														Pillar Score: {pillar.pillarPercent}%
+													</span>
+													<span>•</span>
+													<span className="font-medium">{pillar.status}</span>
+												</div>
+											</div>
+
+											{/* Questions */}
+											<div className="space-y-8">
+												{pillar.questions.map((q, index) => (
+													<div
+														key={q.id}
+														className="avoid-break p-5 bg-white rounded-lg border border-gray-200"
+													>
+														{/* Question Header */}
+														<div className="flex items-start gap-4 mb-3">
+															<span className="shrink-0 px-3 py-1 text-sm font-semibold rounded bg-primary text-white">
+																{q.id}
+															</span>
+
+															<h4 className="font-medium text-gray-900">
+																{q.questionText}
+															</h4>
+														</div>
+
+														{/* Insight */}
+														<div className="mb-3 text-gray-700">
+															<p>{q.explanation.body}</p>
+														</div>
+
+														{/* Valuation Perspective */}
+														<div className="mb-4 text-gray-700 italic">
+															<strong className="not-italic">
+																Valuation perspective:
+															</strong>{" "}
+															{q.explanation.valuation}
+														</div>
+
+														{/* Tag */}
+														<span className="inline-block text-xs text-white px-3 py-1 rounded-full bg-primary font-medium">
+															👉 {q.explanation.tag}
+														</span>
+													</div>
+												))}
+											</div>
+
+											{/* Pillar Summary */}
+											<div className="mt-8 p-5 bg-gray-50 rounded-lg border-l-4 border-primary">
+												<p className="font-medium mb-1">Pillar Summary</p>
+												<p className="text-gray-700">{pillar.summary}</p>
+											</div>
+										</div>
+									))}
+								</section>
+
 								<section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6">
 									<h3 className="text-lg font-extrabold text-gray-900">
 										Recommended Next Step:
@@ -1203,6 +1353,32 @@ export default function AssessmentForm() {
 										Valuation Mentor
 									</p>
 								</section>
+
+								{/* Actions */}
+								<div className="mt-8 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+									<div className="flex flex-col sm:flex-row gap-3">
+										<button
+											className="btn btn-outline btn-primary rounded-xl px-6 no-print"
+											onClick={handleDownloadPdf}
+										>
+											{downloadLoading ? (
+												<>
+													<span className="loading loading-spinner mr-2"></span>
+													Generating...
+												</>
+											) : (
+												"Download PDF"
+											)}
+										</button>
+									</div>
+									{/* 
+									<button
+										className="btn rounded-xl px-6"
+										onClick={resetAssessment}
+									>
+										Retake Assessment
+									</button> */}
+								</div>
 
 								{/* Footer single line */}
 								<div className="mt-4 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
