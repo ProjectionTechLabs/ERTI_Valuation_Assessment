@@ -41,6 +41,130 @@ const defaultForm = {
 
 export default function AssessmentForm() {
 	const reportRef = useRef(null);
+	const headerRef = useRef(null);
+	const scorecardRef = useRef(null);
+	const pillarRefs = useRef([]);
+	const lastPageRef = useRef(null);
+
+	const captureSection = async (element) => {
+		if (!element) {
+			throw new Error("PDF section not found");
+		}
+
+		const cloned = element.cloneNode(true);
+		cloned.classList.add("pdf-mode");
+
+		const wrapper = document.createElement("div");
+		wrapper.style.position = "fixed";
+		wrapper.style.left = "-9999px";
+		wrapper.style.top = "0px";
+		wrapper.style.width = "794px";
+		wrapper.style.background = "#ffffff";
+		wrapper.style.boxSizing = "border-box";
+		wrapper.style.padding = "20px";
+
+		cloned.style.width = "100%";
+
+		wrapper.appendChild(cloned);
+		document.body.appendChild(wrapper);
+
+		await new Promise((r) => setTimeout(r, 400));
+
+		const canvas = await html2canvas(cloned, {
+			scale: 2,
+			useCORS: true,
+			backgroundColor: "#ffffff",
+		});
+
+		document.body.removeChild(wrapper);
+
+		return canvas;
+	};
+
+	const handleDownloadPdf = async () => {
+		try {
+			setDownloadLoading(true);
+			document.body.classList.add("pdf-exporting");
+
+			const pdf = new jsPDF("p", "mm", "a4");
+			const pdfWidth = 210;
+			const pdfHeight = 297;
+			const margin = 10;
+			const usableWidth = pdfWidth - margin * 2;
+
+			// -------- PAGE 1 (Header + Summary + Stage)
+			const headerCanvas = await captureSection(headerRef.current);
+			const headerRatio = usableWidth / headerCanvas.width;
+			const headerHeight = headerCanvas.height * headerRatio;
+
+			pdf.addImage(
+				headerCanvas.toDataURL("image/jpeg", 0.95),
+				"JPEG",
+				margin,
+				margin,
+				usableWidth,
+				headerHeight,
+			);
+
+			// -------- PAGE 2 (Scorecard Only)
+			pdf.addPage();
+
+			const scoreCanvas = await captureSection(scorecardRef.current);
+			const scoreRatio = usableWidth / scoreCanvas.width;
+			const scoreHeight = scoreCanvas.height * scoreRatio;
+
+			pdf.addImage(
+				scoreCanvas.toDataURL("image/jpeg", 0.95),
+				"JPEG",
+				margin,
+				margin,
+				usableWidth,
+				scoreHeight,
+			);
+
+			// -------- PILLAR PAGES (7 pages)
+			for (let i = 0; i < pillarRefs.current.length; i++) {
+				pdf.addPage();
+
+				const pillarCanvas = await captureSection(pillarRefs.current[i]);
+				const pillarRatio = usableWidth / pillarCanvas.width;
+				const pillarHeight = pillarCanvas.height * pillarRatio;
+
+				pdf.addImage(
+					pillarCanvas.toDataURL("image/jpeg", 0.95),
+					"JPEG",
+					margin,
+					margin,
+					usableWidth,
+					pillarHeight,
+				);
+			}
+
+			// -------- LAST PAGE (Next Step + Footer)
+			pdf.addPage();
+
+			const lastCanvas = await captureSection(lastPageRef.current);
+			const lastRatio = usableWidth / lastCanvas.width;
+			const lastHeight = lastCanvas.height * lastRatio;
+
+			pdf.addImage(
+				lastCanvas.toDataURL("image/jpeg", 0.95),
+				"JPEG",
+				margin,
+				margin,
+				usableWidth,
+				lastHeight,
+			);
+
+			pdf.save(`VER_${form.companyName || "Report"}.pdf`);
+		} catch (err) {
+			console.error("PDF ERROR:", err);
+			alert("PDF export failed.");
+		} finally {
+			document.body.classList.remove("pdf-exporting");
+			setDownloadLoading(false);
+		}
+	};
 	const [emailLoading, setEmailLoading] = useState(false);
 	const [downloadLoading, setDownloadLoading] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -555,15 +679,6 @@ export default function AssessmentForm() {
 		>
 			<div className="w-full max-w-4xl bg-white border border-gray-200 shadow-xl rounded-2xl p-8">
 				<div className="flex flex-col justify-between items-start">
-					{step === 3 && (
-						<div className="w-full mb-6">
-							<img
-								src={HeaderImg}
-								alt="eRaised"
-								className="w-full h-auto object-contain"
-							/>
-						</div>
-					)}
 					{step !== 3 && (
 						<>
 							{step === 1 && (
@@ -994,237 +1109,250 @@ export default function AssessmentForm() {
 						//   }
 						// };
 
-						const handleDownloadPdf = async () => {
-							try {
-								setDownloadLoading(true);
+						// const handleDownloadPdf = async () => {
+						// 	try {
+						// 		setDownloadLoading(true);
 
-								const element = reportRef.current;
-								if (!element) {
-									alert("Report not found.");
-									return;
-								}
+						// 		const element = reportRef.current;
+						// 		if (!element) {
+						// 			alert("Report not found.");
+						// 			return;
+						// 		}
 
-								document.body.classList.add("pdf-exporting");
+						// 		document.body.classList.add("pdf-exporting");
 
-								await new Promise((r) => setTimeout(r, 300));
+						// 		await new Promise((r) => setTimeout(r, 300));
 
-								// ✅ clone report
-								const cloned = element.cloneNode(true);
+						// 		// ✅ clone report
+						// 		const cloned = element.cloneNode(true);
 
-								// ✅ apply pdf-mode only on clone
-								cloned.classList.add("pdf-mode");
+						// 		// ✅ apply pdf-mode only on clone
+						// 		cloned.classList.add("pdf-mode");
 
-								// wrapper (offscreen)
-								const wrapper = document.createElement("div");
-								wrapper.style.position = "fixed";
-								wrapper.style.left = "-9999px";
-								wrapper.style.top = "0px";
-								wrapper.style.width = "794px";
-								wrapper.style.background = "#ffffff";
-								wrapper.style.boxSizing = "border-box";
-								wrapper.style.padding = "0px";
-								wrapper.style.overflow = "hidden";
+						// 		// wrapper (offscreen)
+						// 		const wrapper = document.createElement("div");
+						// 		wrapper.style.position = "fixed";
+						// 		wrapper.style.left = "-9999px";
+						// 		wrapper.style.top = "0px";
+						// 		wrapper.style.width = "794px";
+						// 		wrapper.style.background = "#ffffff";
+						// 		wrapper.style.boxSizing = "border-box";
+						// 		wrapper.style.padding = "0px";
+						// 		wrapper.style.overflow = "hidden";
 
-								// make clone fit wrapper
-								cloned.style.width = "100%";
-								cloned.style.maxWidth = "100%";
+						// 		// make clone fit wrapper
+						// 		cloned.style.width = "100%";
+						// 		cloned.style.maxWidth = "100%";
 
-								wrapper.appendChild(cloned);
-								document.body.appendChild(wrapper);
+						// 		wrapper.appendChild(cloned);
+						// 		document.body.appendChild(wrapper);
 
-								await new Promise((r) => setTimeout(r, 600));
+						// 		await new Promise((r) => setTimeout(r, 600));
 
-								// ✅ capture CLONE, not wrapper
-								const canvas = await html2canvas(cloned, {
-									scale: 2,
-									useCORS: true,
-									allowTaint: true,
-									backgroundColor: "#ffffff",
-								});
+						// 		// ✅ capture CLONE, not wrapper
+						// 		const canvas = await html2canvas(cloned, {
+						// 			scale: 2,
+						// 			useCORS: true,
+						// 			allowTaint: true,
+						// 			backgroundColor: "#ffffff",
+						// 		});
 
-								document.body.removeChild(wrapper);
+						// 		document.body.removeChild(wrapper);
 
-								const pdf = new jsPDF("p", "mm", "a4");
-								const pdfWidth = 210;
-								const pdfHeight = 297;
+						// 		const pdf = new jsPDF("p", "mm", "a4");
+						// 		const pdfWidth = 210;
+						// 		const pdfHeight = 297;
 
-								// ✅ margins
-								const marginX = 10;
-								const marginTop = 10;
-								const usableWidth = pdfWidth - marginX * 2;
-								const usableHeight = pdfHeight - marginTop * 2;
+						// 		// ✅ margins
+						// 		const marginX = 10;
+						// 		const marginTop = 10;
+						// 		const usableWidth = pdfWidth - marginX * 2;
+						// 		const usableHeight = pdfHeight - marginTop * 2;
 
-								const canvasWidth = canvas.width;
-								const canvasHeight = canvas.height;
+						// 		const canvasWidth = canvas.width;
+						// 		const canvasHeight = canvas.height;
 
-								const ratio = usableWidth / canvasWidth;
-								const pageHeightPx = Math.floor(usableHeight / ratio);
+						// 		const ratio = usableWidth / canvasWidth;
+						// 		const pageHeightPx = Math.floor(usableHeight / ratio);
 
-								const totalPages = Math.ceil(canvasHeight / pageHeightPx);
+						// 		const totalPages = Math.ceil(canvasHeight / pageHeightPx);
 
-								for (let page = 0; page < totalPages; page++) {
-									const pageCanvas = document.createElement("canvas");
-									const ctx = pageCanvas.getContext("2d");
+						// 		for (let page = 0; page < totalPages; page++) {
+						// 			const pageCanvas = document.createElement("canvas");
+						// 			const ctx = pageCanvas.getContext("2d");
 
-									pageCanvas.width = canvasWidth;
-									pageCanvas.height = Math.min(
-										pageHeightPx,
-										canvasHeight - page * pageHeightPx,
-									);
+						// 			pageCanvas.width = canvasWidth;
+						// 			pageCanvas.height = Math.min(
+						// 				pageHeightPx,
+						// 				canvasHeight - page * pageHeightPx,
+						// 			);
 
-									ctx.drawImage(
-										canvas,
-										0,
-										page * pageHeightPx,
-										canvasWidth,
-										pageCanvas.height,
-										0,
-										0,
-										canvasWidth,
-										pageCanvas.height,
-									);
+						// 			ctx.drawImage(
+						// 				canvas,
+						// 				0,
+						// 				page * pageHeightPx,
+						// 				canvasWidth,
+						// 				pageCanvas.height,
+						// 				0,
+						// 				0,
+						// 				canvasWidth,
+						// 				pageCanvas.height,
+						// 			);
 
-									const pageImg = pageCanvas.toDataURL("image/jpeg", 0.95);
+						// 			const pageImg = pageCanvas.toDataURL("image/jpeg", 0.95);
 
-									if (page > 0) pdf.addPage();
+						// 			if (page > 0) pdf.addPage();
 
-									const pageHeightMm = pageCanvas.height * ratio;
+						// 			const pageHeightMm = pageCanvas.height * ratio;
 
-									pdf.addImage(
-										pageImg,
-										"JPEG",
-										marginX,
-										marginTop,
-										usableWidth,
-										pageHeightMm,
-									);
-								}
+						// 			pdf.addImage(
+						// 				pageImg,
+						// 				"JPEG",
+						// 				marginX,
+						// 				marginTop,
+						// 				usableWidth,
+						// 				pageHeightMm,
+						// 			);
+						// 		}
 
-								pdf.save(`VER_${form.companyName || "Report"}.pdf`);
-							} catch (err) {
-								console.error("PDF ERROR:", err);
-								alert("PDF export failed. Check console.");
-							} finally {
-								document.body.classList.remove("pdf-exporting");
-								setDownloadLoading(false);
-							}
-						};
+						// 		pdf.save(`VER_${form.companyName || "Report"}.pdf`);
+						// 	} catch (err) {
+						// 		console.error("PDF ERROR:", err);
+						// 		alert("PDF export failed. Check console.");
+						// 	} finally {
+						// 		document.body.classList.remove("pdf-exporting");
+						// 		setDownloadLoading(false);
+						// 	}
+						// };
+
+						pillarRefs.current = [];
 
 						return (
 							<div ref={reportRef} className="max-w-5xl mx-auto">
 								{/* Header */}
-
-								<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6 text-center sm:text-left">
-									{/* Left Section */}
-									<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-1 min-w-0 items-center sm:items-start">
-										<div className="leading-tight min-w-0">
-											<h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 sm:truncate">
-												VALUATION ENHANCEMENT REPORT (VER)
-											</h2>
-
-											<p className="text-sm text-gray-500 mt-1 sm:line-clamp-2">
-												Based on the Saptang Framework of Kautilya’s
-												Arthashastra
-											</p>
-										</div>
+								<div ref={headerRef}>
+									<div className="w-full mb-6">
+										<img
+											src={HeaderImg}
+											alt="eRaised"
+											className="w-full h-auto object-contain"
+										/>
 									</div>
+									<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6 text-center sm:text-left">
+										{/* Left Section */}
+										<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-1 min-w-0 items-center sm:items-start">
+											<div className="leading-tight min-w-0">
+												<h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 sm:truncate">
+													VALUATION ENHANCEMENT REPORT (VER)
+												</h2>
 
-									{/* Right Section – Date */}
-									<div className="flex-shrink-0 text-center sm:text-right">
-										<div className="text-[11px] uppercase tracking-wide text-gray-500">
-											Assessment Date
-										</div>
-										<div className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-											{assessmentDate}
-										</div>
-									</div>
-								</div>
-
-								<div className="my-6 border-t border-gray-200" />
-
-								{/* Meta cards */}
-								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-									<div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-										<div className="text-[11px] uppercase tracking-wide text-gray-500">
-											Company
-										</div>
-										<div className="mt-1 text-base font-semibold text-gray-900">
-											{form.companyName || "—"}
-										</div>
-									</div>
-
-									<div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-										<div className="text-[11px] uppercase tracking-wide text-gray-500">
-											Industry / Sector
-										</div>
-										<div className="mt-1 text-base font-semibold text-gray-900">
-											{form.industry || "—"}
-										</div>
-									</div>
-								</div>
-
-								{/* Intro */}
-								<div className="mt-5 rounded-2xl border border-gray-200 bg-white p-5">
-									<p className="text-sm leading-relaxed text-gray-700">
-										The Valuation Enhancement Report (VER) helps you understand
-										and increase the true value of your business. Based on
-										Chanakya’s Saptang—the seven pillars of building strong and
-										lasting institutions—it converts timeless strategic wisdom
-										into practical guidance for modern businesses.
-									</p>
-								</div>
-
-								{/* Score + Stage */}
-								<div className="grid mt-5 grid-cols-1 lg:grid-cols-2 gap-4">
-									<div className="rounded-2xl border border-gray-200 bg-white p-5">
-										<div className="text-[11px] uppercase tracking-wide font-bold text-black">
-											Valuation Assessment Overall Score
-										</div>
-										<div className="mt-3 flex items-end gap-2">
-											<div className="text-5xl sm:text-6xl font-normal tracking-tight text-gray-900">
-												{VRI}
-											</div>
-											<div className="text-lg font-semibold text-gray-500 mb-1">
-												%
+												<p className="text-sm text-gray-500 mt-1 sm:line-clamp-2">
+													Based on the Saptang Framework of Kautilya’s
+													Arthashastra
+												</p>
 											</div>
 										</div>
-										<div className="mt-2 text-sm text-gray-600">
-											Higher score indicates stronger valuation readiness.
+
+										{/* Right Section – Date */}
+										<div className="flex-shrink-0 text-center sm:text-right">
+											<div className="text-[11px] uppercase tracking-wide text-gray-500">
+												Assessment Date
+											</div>
+											<div className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+												{assessmentDate}
+											</div>
 										</div>
 									</div>
 
-									<div
-										className={`rounded-2xl border ${meta.border} ${meta.scoreBg} p-5`}
-									>
+									<div className="my-6 border-t border-gray-200" />
+
+									{/* Meta cards */}
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+										<div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+											<div className="text-[11px] uppercase tracking-wide text-gray-500">
+												Company
+											</div>
+											<div className="mt-1 text-base font-semibold text-gray-900">
+												{form.companyName || "—"}
+											</div>
+										</div>
+
+										{/* <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+											<div className="text-[11px] uppercase tracking-wide text-gray-500">
+												Industry / Sector
+											</div>
+											<div className="mt-1 text-base font-semibold text-gray-900">
+												{form.industry || "—"}
+											</div>
+										</div> */}
+									</div>
+
+									{/* Intro */}
+									<div className="mt-5 rounded-2xl border border-gray-200 bg-white p-5">
+										<p className="text-sm leading-relaxed text-gray-700">
+											The Valuation Enhancement Report (VER) helps you
+											understand and increase the true value of your business.
+											Based on Chanakya’s Saptang—the seven pillars of building
+											strong and lasting institutions—it converts timeless
+											strategic wisdom into practical guidance for modern
+											businesses.
+										</p>
+									</div>
+
+									{/* Score + Stage */}
+									<div className="grid mt-5 grid-cols-1 lg:grid-cols-2 gap-4">
+										<div className="rounded-2xl border border-gray-200 bg-white p-5">
+											<div className="text-[11px] uppercase tracking-wide font-bold text-black">
+												Valuation Assessment Overall Score
+											</div>
+											<div className="mt-3 flex items-end gap-2">
+												<div className="text-5xl sm:text-6xl font-normal tracking-tight text-gray-900">
+													{VRI}
+												</div>
+												<div className="text-lg font-semibold text-gray-500 mb-1">
+													%
+												</div>
+											</div>
+											<div className="mt-2 text-sm text-gray-600">
+												Higher score indicates stronger valuation readiness.
+											</div>
+										</div>
+
+										<div
+											className={`rounded-2xl border ${meta.border} ${meta.scoreBg} p-5`}
+										>
+											<div className="text-[11px] uppercase tracking-wide font-bold text-black">
+												Chanakya Stage
+											</div>
+
+											<div className="mt-3 text-2xl font-medium text-gray-900">
+												<span
+													className="font-serif block mb-2 text-2xl"
+													style={{
+														fontFamily: '"Times New Roman", Times, serif',
+													}}
+												>
+													{meta.stage}
+												</span>
+												{meta.interprete}
+											</div>
+										</div>
+									</div>
+
+									{/* Meaning */}
+									<div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-6">
 										<div className="text-[11px] uppercase tracking-wide font-bold text-black">
-											Chanakya Stage
+											What it means
 										</div>
-
-										<div className="mt-3 text-2xl font-medium text-gray-900">
-											<span
-												className="font-serif block mb-2 text-2xl"
-												style={{
-													fontFamily: '"Times New Roman", Times, serif',
-												}}
-											>
-												{meta.stage}
-											</span>
-											{meta.interprete}
-										</div>
+										<p className="mt-2 text-sm leading-relaxed text-gray-700">
+											{meta.meaning}
+										</p>
 									</div>
 								</div>
-
-								{/* Meaning */}
-								<div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-6">
-									<div className="text-[11px] uppercase tracking-wide font-bold text-black">
-										What it means
-									</div>
-									<p className="mt-2 text-sm leading-relaxed text-gray-700">
-										{meta.meaning}
-									</p>
-								</div>
-
-								<section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6">
+								<section
+									ref={scorecardRef}
+									className="mt-6 rounded-2xl border border-gray-200 bg-white p-6"
+								>
 									<div className="flex items-start justify-between gap-4">
 										<div>
 											<h3 className="text-lg font-extrabold text-gray-900">
@@ -1256,11 +1384,13 @@ export default function AssessmentForm() {
 
 														<td className="text-sm">
 															<span
-																className={`badge ${
-																	r.status === "Value Driver Pillar"
-																		? "badge-success"
-																		: "badge-warning"
-																}`}
+																className={`inline-flex items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold leading-none whitespace-nowrap
+      ${
+				r.status === "Value Driver Pillar"
+					? "bg-green-100 text-green-800 border-green-300"
+					: "bg-yellow-100 text-yellow-900 border-yellow-300"
+			}
+    `}
 															>
 																{r.status}
 															</span>
@@ -1277,8 +1407,12 @@ export default function AssessmentForm() {
 										Valuation Enhancement Analysis of Your Company
 									</h1>
 
-									{section5Data.map((pillar) => (
-										<div key={pillar.pillarKey} className="mb-16">
+									{section5Data.map((pillar, index) => (
+										<div
+											key={pillar.pillarKey}
+											ref={(el) => (pillarRefs.current[index] = el)}
+											className="mb-16"
+										>
 											{/* Pillar Header */}
 											<div className="mb-6">
 												<h2 className="text-xl font-semibold mb-1">
@@ -1341,61 +1475,62 @@ export default function AssessmentForm() {
 										</div>
 									))}
 								</section>
+								<div ref={lastPageRef}>
+									<section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6">
+										<h3 className="text-lg font-extrabold text-gray-900">
+											Recommended Next Step:
+										</h3>
 
-								<section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6">
-									<h3 className="text-lg font-extrabold text-gray-900">
-										Recommended Next Step:
-									</h3>
+										<p className="mt-3 text-sm leading-relaxed text-gray-700">
+											In order to Strengthen Valuation based on Chanakya’s
+											Strategic Roadmap book one on one consultation with our
+											Valuation Mentor
+										</p>
+									</section>
 
-									<p className="mt-3 text-sm leading-relaxed text-gray-700">
-										In order to Strengthen Valuation based on Chanakya’s
-										Strategic Roadmap book one on one consultation with our
-										Valuation Mentor
-									</p>
-								</section>
-
-								{/* Actions */}
-								<div className="mt-8 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-									<div className="flex flex-col sm:flex-row gap-3">
-										<button
-											className="btn btn-outline btn-primary rounded-xl px-6 no-print"
-											onClick={handleDownloadPdf}
-										>
-											{downloadLoading ? (
-												<>
-													<span className="loading loading-spinner mr-2"></span>
-													Generating...
-												</>
-											) : (
-												"Download PDF"
-											)}
-										</button>
-									</div>
-									{/* 
+									{/* Actions */}
+									<div className="mt-8 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+										<div className="flex flex-col sm:flex-row gap-3">
+											<button
+												className="btn btn-outline btn-primary rounded-xl px-6 no-print"
+												onClick={handleDownloadPdf}
+											>
+												{downloadLoading ? (
+													<>
+														<span className="loading loading-spinner mr-2"></span>
+														Generating...
+													</>
+												) : (
+													"Download PDF"
+												)}
+											</button>
+										</div>
+										{/* 
 									<button
 										className="btn rounded-xl px-6"
 										onClick={resetAssessment}
 									>
 										Retake Assessment
 									</button> */}
-								</div>
+									</div>
 
-								{/* Footer single line */}
-								<div className="mt-4 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
-									<span className="font-semibold text-gray-900">
-										Dr.Yogesh Sangani
-									</span>
-									<span className="mx-2 text-gray-300">|</span>
-									<a
-										className="underline"
-										href="mailto:yogesh@eraisedtoinfinity.com"
-									>
-										yogesh@eraisedtoinfinity.com
-									</a>
-									<span className="mx-2 text-gray-300">|</span>
-									<a className="underline" href="tel:+919619415535">
-										+91 96194 15535
-									</a>
+									{/* Footer single line */}
+									<div className="mt-4 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
+										<span className="font-semibold text-gray-900">
+											Dr.Yogesh Sangani
+										</span>
+										<span className="mx-2 text-gray-300">|</span>
+										<a
+											className="underline"
+											href="mailto:yogesh@eraisedtoinfinity.com"
+										>
+											yogesh@eraisedtoinfinity.com
+										</a>
+										<span className="mx-2 text-gray-300">|</span>
+										<a className="underline" href="tel:+919619415535">
+											+91 96194 15535
+										</a>
+									</div>
 								</div>
 							</div>
 						);
