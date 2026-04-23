@@ -24,23 +24,36 @@ const createToken = (user) => {
 // POST /api/auth/check-user
 export const checkUser = async (req, res) => {
 	try {
-		const { mobile } = req.body;
+		const { companyName } = req.body;
 
-		if (!mobile) {
+		if (!companyName) {
 			return res.status(400).json({
 				success: false,
-				message: "Mobile number is required",
+				message: "Company name is required",
 			});
 		}
 
-		const user = await User.findOne({ contact: mobile }).lean();
+		const normalizedCompanyName = companyName.trim();
+		const user = await User.findOne({
+			companyName: {
+				$regex: `^${normalizedCompanyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+				$options: "i",
+			},
+		});
 
 		if (user) {
+			user.lastLoginAt = new Date();
+			await user.save();
+
+			const token = createToken(user);
+
 			return res.status(200).json({
 				success: true,
-				message: "User exists",
+				message: "User found",
 				data: {
 					exists: true,
+					token,
+					user,
 					userId: user.userId,
 					validUser: user.validUser,
 					contact: user.contact,

@@ -1,6 +1,7 @@
 import api from "./client";
 
-export const checkUser = (mobile) => api.post("/auth/check-user", { mobile });
+export const checkUser = (companyName) =>
+	api.post("/auth/check-user", { companyName });
 
 export const sendLoginOTP = (mobile) =>
 	api.post("/auth/send-login-otp", { mobile });

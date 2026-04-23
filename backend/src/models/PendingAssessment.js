@@ -66,6 +66,18 @@ const pendingAssessmentSchema = new mongoose.Schema(
 			trim: true,
 		},
 
+		approximateTurnover: {
+			type: String,
+			default: "",
+			trim: true,
+		},
+
+		teamSize: {
+			type: String,
+			default: "",
+			trim: true,
+		},
+
 		companySize: {
 			type: String,
 			default: "",

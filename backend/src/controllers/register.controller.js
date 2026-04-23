@@ -51,6 +51,8 @@ export const startRegistration = async (req, res) => {
 			email,
 			contact,
 			companyName,
+			approximateTurnover,
+			teamSize,
 			companySize,
 			companyLocation,
 			companyIndustry,
@@ -83,6 +85,8 @@ export const startRegistration = async (req, res) => {
 			email,
 			contact,
 			companyName: companyName || "",
+			approximateTurnover: approximateTurnover || "",
+			teamSize: teamSize || "",
 			companySize: companySize || "",
 			companyLocation: companyLocation || "",
 			companyIndustry: companyIndustry || "",
@@ -210,12 +214,65 @@ export const submitPendingAssessment = async (req, res) => {
 			`✅ Assessment saved - Session: ${sessionId}, Answers: ${selectedAnswers.length}, Score: ${totalScore}`,
 		);
 
+		const alreadyExists = await User.findOne({
+			contact: pending.contact,
+		}).lean();
+
+		if (alreadyExists) {
+			return res.status(409).json({
+				success: false,
+				message: "User already exists. Please login.",
+			});
+		}
+
+		const userCode = await generateNextUserCode();
+		const partnerId = process.env.PARTNER_ID || "ERTI";
+		const userId = `${partnerId}${userCode}`;
+
+		const user = await User.create({
+			userCode,
+			userId,
+			partnerId,
+			validUser: true,
+			fname: pending.fname,
+			lname: pending.lname,
+			email: pending.email,
+			contact: pending.contact,
+			companyName: pending.companyName,
+			approximateTurnover: pending.approximateTurnover,
+			teamSize: pending.teamSize,
+			companySize: pending.companySize,
+			companyLocation: pending.companyLocation,
+			companyIndustry: pending.companyIndustry,
+			businessType: pending.businessType,
+			productsServices: pending.productsServices,
+			isMobileVerified: true,
+			lastLoginAt: new Date(),
+			assessmentAttemptsCount: 1,
+			attemptsRemaining: 1,
+			firstAttemptDate: new Date(),
+			lastAttemptDate: new Date(),
+		});
+
+		await AssessmentAttempt.create({
+			user: user._id,
+			assessmentDate: new Date(),
+			totalScore: pending.totalScore,
+			answers: pending.answers,
+		});
+
+		await PendingAssessment.deleteOne({ _id: pending._id });
+
+		const token = createToken(user);
+
 		return res.status(200).json({
 			success: true,
-			message: "Assessment answers saved successfully",
+			message: "Assessment submitted successfully",
 			data: {
-				sessionId: pending.sessionId,
+				sessionId,
 				totalScore: pending.totalScore,
+				token,
+				user,
 			},
 		});
 	} catch (error) {

@@ -49,10 +49,14 @@ export async function saveAssessmentToSheet({ form, meta, answers }) {
 		Email: form.email,
 		Contact: form.contact,
 		Company: form.companyName,
+		ApproximateTurnover: form.approximateTurnover,
+		"Approximate Turnover": form.approximateTurnover,
+		Turnover: form.approximateTurnover,
 		Industry: form.industry,
 		City: form.city,
 		BusinessType: form.businessType,
 		TeamSize: form.teamSize,
+		"Team Size": form.teamSize,
 		IsFounder: form.isFounder,
 
 		// Only add founder details if isFounder is "No"
