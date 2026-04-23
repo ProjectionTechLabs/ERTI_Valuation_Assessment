@@ -10,6 +10,8 @@ const generateOtp = () => {
 	return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const createToken = (user) => {
 	return jwt.sign(
 		{
@@ -67,7 +69,12 @@ export const startRegistration = async (req, res) => {
 			});
 		}
 
-		const existingUser = await User.findOne({ contact }).lean();
+		const existingUser = await User.findOne({
+			companyName: {
+				$regex: `^${escapeRegex((companyName || "").trim())}$`,
+				$options: "i",
+			},
+		}).lean();
 
 		if (existingUser) {
 			return res.status(409).json({
@@ -215,7 +222,10 @@ export const submitPendingAssessment = async (req, res) => {
 		);
 
 		const alreadyExists = await User.findOne({
-			contact: pending.contact,
+			companyName: {
+				$regex: `^${escapeRegex((pending.companyName || "").trim())}$`,
+				$options: "i",
+			},
 		}).lean();
 
 		if (alreadyExists) {
@@ -367,7 +377,10 @@ export const verifyRegisterOtpAndSave = async (req, res) => {
 		}
 
 		const alreadyExists = await User.findOne({
-			contact: pending.contact,
+			companyName: {
+				$regex: `^${escapeRegex((pending.companyName || "").trim())}$`,
+				$options: "i",
+			},
 		}).lean();
 
 		if (alreadyExists) {
