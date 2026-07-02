@@ -27,7 +27,7 @@ const getStageFromVRI = (vri) => {
 
 function Register({
 	initialMobile = "",
-	initialCompanyName = "",
+	initialEmail = "",
 	onRegisterSuccess,
 	onBackToLogin,
 }) {
@@ -40,9 +40,9 @@ function Register({
 	const [formData, setFormData] = useState({
 		fname: "",
 		lname: "",
-		email: "",
+		email: initialEmail,
 		contact: initialMobile,
-		companyName: initialCompanyName,
+		companyName: "",
 		businessType: "",
 		productsServices: "",
 		approximateTurnover: "",
@@ -57,11 +57,7 @@ function Register({
 			!formData.lname ||
 			!formData.email ||
 			!/^[6-9]\d{9}$/.test(formData.contact) ||
-			!formData.companyName ||
-			!formData.businessType ||
-			!formData.productsServices ||
-			!formData.approximateTurnover ||
-			!formData.teamSize
+			!formData.companyName
 		) {
 			alert("Please fill all required fields");
 			return;
@@ -276,7 +272,7 @@ function Register({
 							/>
 							<input
 								type="text"
-								placeholder="What business are you in? *"
+								placeholder="What business are you in? (Optional)"
 								value={formData.businessType}
 								onChange={(e) =>
 									setFormData({ ...formData, businessType: e.target.value })
@@ -284,7 +280,7 @@ function Register({
 								className="w-full border-2 border-gray-200 p-3.5 rounded-xl focus:outline-none focus:border-blue-500 bg-slate-50"
 							/>
 							<textarea
-								placeholder="Key Products/Services you offer *"
+								placeholder="Key Products/Services you offer (Optional)"
 								value={formData.productsServices}
 								onChange={(e) =>
 									setFormData({
@@ -305,7 +301,7 @@ function Register({
 								}
 								className="w-full border-2 border-gray-200 p-3.5 rounded-xl focus:outline-none focus:border-blue-500 bg-slate-50"
 							>
-								<option value="">Approximate Turnover *</option>
+								<option value="">Approximate Turnover (Optional)</option>
 								{TURNOVER_OPTIONS.map((option) => (
 									<option key={option} value={option}>
 										{option}
@@ -319,7 +315,7 @@ function Register({
 								}
 								className="w-full border-2 border-gray-200 p-3.5 rounded-xl focus:outline-none focus:border-blue-500 bg-slate-50"
 							>
-								<option value="">Team Size *</option>
+								<option value="">Team Size (Optional)</option>
 								{TEAM_SIZE_OPTIONS.map((option) => (
 									<option key={option} value={option}>
 										{option}

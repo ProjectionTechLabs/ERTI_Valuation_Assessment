@@ -5,12 +5,11 @@ import Question from "../models/Question.js";
 import PendingAssessment from "../models/PendingAssessment.js";
 import AssessmentAttempt from "../models/AssessmentAttempt.js";
 import { sendOTP } from "../services/smsService.js";
+import { getAttemptPolicy } from "../services/attemptPolicy.js";
 
 const generateOtp = () => {
 	return Math.floor(100000 + Math.random() * 900000).toString();
 };
-
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const createToken = (user) => {
 	return jwt.sign(
@@ -25,6 +24,14 @@ const createToken = (user) => {
 		},
 	);
 };
+
+const buildExistingUserQuery = ({ email, contact }) => ({
+	$or: [{ email: email.trim().toLowerCase() }, { contact: contact.trim() }],
+});
+
+const normalizeEmail = (email = "") => email.trim().toLowerCase();
+
+const normalizeContact = (contact = "") => String(contact).replace(/\D/g, "");
 
 const generateNextUserCode = async () => {
 	const lastUser = await User.findOne({})
@@ -42,6 +49,119 @@ const generateNextUserCode = async () => {
 	}
 
 	return String(nextNumber).padStart(6, "0");
+};
+
+// POST /api/register/signup
+export const createSignupUser = async (req, res) => {
+	try {
+		const {
+			fname,
+			lname,
+			companyName,
+			email,
+			contact,
+			approximateTurnover,
+			teamSize,
+			companySize,
+			companyLocation,
+			companyIndustry,
+			businessType,
+			productsServices,
+		} = req.body;
+
+		if (!fname || !lname || !companyName || !email || !contact) {
+			return res.status(400).json({
+				success: false,
+				message:
+					"fname, lname, companyName, email and contact are required",
+			});
+		}
+
+		const normalizedEmail = normalizeEmail(email);
+		const normalizedContact = normalizeContact(contact);
+
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+			return res.status(400).json({
+				success: false,
+				message: "Invalid email format",
+			});
+		}
+
+		if (!/^[6-9]\d{9}$/.test(normalizedContact)) {
+			return res.status(400).json({
+				success: false,
+				message: "Invalid mobile number format",
+			});
+		}
+
+		const existingUser = await User.findOne(
+			buildExistingUserQuery({
+				email: normalizedEmail,
+				contact: normalizedContact,
+			}),
+		).lean();
+
+		if (existingUser) {
+			return res.status(409).json({
+				success: false,
+				message: "User already exists. Please login.",
+				data: {
+					userId: existingUser.userId,
+					email: existingUser.email,
+					contact: existingUser.contact,
+				},
+			});
+		}
+
+		const { MAX_ATTEMPTS } = getAttemptPolicy();
+		const userCode = await generateNextUserCode();
+		const partnerId = process.env.PARTNER_ID || "ERTI";
+		const userId = `${partnerId}${userCode}`;
+
+		const user = await User.create({
+			userCode,
+			userId,
+			partnerId,
+			validUser: true,
+			fname: fname.trim(),
+			lname: lname.trim(),
+			email: normalizedEmail,
+			contact: normalizedContact,
+			companyName: companyName.trim(),
+			approximateTurnover: approximateTurnover || "",
+			teamSize: teamSize || "",
+			companySize: companySize || "",
+			companyLocation: companyLocation || "",
+			companyIndustry: companyIndustry || "",
+			businessType: businessType || "",
+			productsServices: productsServices || "",
+			isMobileVerified: false,
+			lastLoginAt: null,
+			assessmentAttemptsCount: 0,
+			attemptsRemaining: MAX_ATTEMPTS,
+			firstAttemptDate: null,
+			lastAttemptDate: null,
+		});
+
+		return res.status(201).json({
+			success: true,
+			message: "Signup completed successfully",
+			data: {
+				userId: user.userId,
+				fname: user.fname,
+				lname: user.lname,
+				companyName: user.companyName,
+				email: user.email,
+				contact: user.contact,
+				attemptsRemaining: user.attemptsRemaining,
+			},
+		});
+	} catch (error) {
+		return res.status(500).json({
+			success: false,
+			message: error.message,
+		});
+	}
 };
 
 // POST /api/register/start
@@ -62,19 +182,16 @@ export const startRegistration = async (req, res) => {
 			productsServices,
 		} = req.body;
 
-		if (!fname || !lname || !email || !contact) {
+		if (!fname || !lname || !email || !contact || !companyName) {
 			return res.status(400).json({
 				success: false,
-				message: "fname, lname, email and contact are required",
+				message: "fname, lname, companyName, email and contact are required",
 			});
 		}
 
-		const existingUser = await User.findOne({
-			companyName: {
-				$regex: `^${escapeRegex((companyName || "").trim())}$`,
-				$options: "i",
-			},
-		}).lean();
+		const existingUser = await User.findOne(
+			buildExistingUserQuery({ email, contact }),
+		).lean();
 
 		if (existingUser) {
 			return res.status(409).json({
@@ -221,12 +338,12 @@ export const submitPendingAssessment = async (req, res) => {
 			`✅ Assessment saved - Session: ${sessionId}, Answers: ${selectedAnswers.length}, Score: ${totalScore}`,
 		);
 
-		const alreadyExists = await User.findOne({
-			companyName: {
-				$regex: `^${escapeRegex((pending.companyName || "").trim())}$`,
-				$options: "i",
-			},
-		}).lean();
+		const alreadyExists = await User.findOne(
+			buildExistingUserQuery({
+				email: pending.email,
+				contact: pending.contact,
+			}),
+		).lean();
 
 		if (alreadyExists) {
 			return res.status(409).json({
@@ -234,6 +351,8 @@ export const submitPendingAssessment = async (req, res) => {
 				message: "User already exists. Please login.",
 			});
 		}
+
+		const { MAX_ATTEMPTS } = getAttemptPolicy();
 
 		const userCode = await generateNextUserCode();
 		const partnerId = process.env.PARTNER_ID || "ERTI";
@@ -259,7 +378,7 @@ export const submitPendingAssessment = async (req, res) => {
 			isMobileVerified: true,
 			lastLoginAt: new Date(),
 			assessmentAttemptsCount: 1,
-			attemptsRemaining: 1,
+			attemptsRemaining: MAX_ATTEMPTS - 1,
 			firstAttemptDate: new Date(),
 			lastAttemptDate: new Date(),
 		});
@@ -376,12 +495,12 @@ export const verifyRegisterOtpAndSave = async (req, res) => {
 			});
 		}
 
-		const alreadyExists = await User.findOne({
-			companyName: {
-				$regex: `^${escapeRegex((pending.companyName || "").trim())}$`,
-				$options: "i",
-			},
-		}).lean();
+		const alreadyExists = await User.findOne(
+			buildExistingUserQuery({
+				email: pending.email,
+				contact: pending.contact,
+			}),
+		).lean();
 
 		if (alreadyExists) {
 			return res.status(409).json({
@@ -404,6 +523,8 @@ export const verifyRegisterOtpAndSave = async (req, res) => {
 				message: "Invalid or expired OTP",
 			});
 		}
+
+		const { MAX_ATTEMPTS } = getAttemptPolicy();
 
 		const userCode = await generateNextUserCode();
 		const partnerId = process.env.PARTNER_ID || "ERTI";
@@ -430,7 +551,7 @@ export const verifyRegisterOtpAndSave = async (req, res) => {
 			isMobileVerified: true,
 			lastLoginAt: new Date(),
 			assessmentAttemptsCount: 1,
-			attemptsRemaining: 1,
+			attemptsRemaining: MAX_ATTEMPTS - 1,
 			firstAttemptDate: new Date(),
 			lastAttemptDate: new Date(),
 		});

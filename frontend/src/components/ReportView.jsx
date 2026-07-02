@@ -17,6 +17,10 @@ function ReportView({
 	handleOpenWorkbook,
 	downloadLoading,
 	HeaderImg,
+	attemptsRemaining = 0,
+	maxAttempts = 3,
+	attemptWindowDays = 21,
+	onRetakeRequest,
 }) {
 	const assessmentDate = new Date().toLocaleDateString("en-GB", {
 		day: "2-digit",
@@ -80,6 +84,7 @@ function ReportView({
 	pillarRefs.current = [];
 
 	const isLocked = !isAuthenticated;
+	const canRetake = isAuthenticated && attemptsRemaining > 0 && typeof onRetakeRequest === "function";
 	const visibleSection5Data = isAuthenticated
 		? section5Data
 		: section5Data.slice(0, 1).map((pillar) => ({
@@ -156,6 +161,19 @@ function ReportView({
 							guidance for modern businesses.
 						</p>
 					</div>
+
+					{isAuthenticated && (
+						<div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+							<div className="text-[11px] uppercase tracking-wide font-bold text-blue-900">
+								Assessment Window
+							</div>
+							<p className="mt-2 text-sm leading-relaxed text-blue-900">
+								You have {attemptsRemaining} of {maxAttempts} attempt
+								{maxAttempts === 1 ? "" : "s"} remaining in the current{" "}
+								{attemptWindowDays}-day cycle.
+							</p>
+						</div>
+					)}
 
 					{/* Score + Stage */}
 					<div className="grid mt-5 grid-cols-1 lg:grid-cols-2 gap-4">
@@ -384,13 +402,14 @@ function ReportView({
 									Open Workbook
 								</button>
 							</div>
-							{/* 
-                                        <button
-                                            className="btn rounded-xl px-6"
-                                            onClick={resetAssessment}
-                                        >
-                                            Retake Assessment
-                                        </button> */}
+							{canRetake && (
+								<button
+									className="btn rounded-xl px-6 no-print"
+									onClick={onRetakeRequest}
+								>
+									Retake Test
+								</button>
+							)}
 						</div>
 
 						<div className="mt-4 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">

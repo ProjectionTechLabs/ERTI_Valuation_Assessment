@@ -1,5 +1,6 @@
 import express from "express";
 import {
+	createSignupUser,
 	startRegistration,
 	getQuestions,
 	submitPendingAssessment,
@@ -9,6 +10,7 @@ import {
 
 const router = express.Router();
 
+router.post("/signup", createSignupUser);
 router.post("/start", startRegistration);
 router.get("/questions", getQuestions);
 router.post("/submit-assessment", submitPendingAssessment);

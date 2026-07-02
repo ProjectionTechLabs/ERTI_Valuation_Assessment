@@ -2,6 +2,10 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Otp from "../models/Otp.js";
 import { sendOTP } from "../services/smsService.js";
+import {
+	applyAttemptWindowReset,
+	getAttemptPolicy,
+} from "../services/attemptPolicy.js";
 
 const generateOtp = () => {
 	return Math.floor(100000 + Math.random() * 900000).toString();
@@ -21,52 +25,66 @@ const createToken = (user) => {
 	);
 };
 
+const buildAuthPayload = (user, token) => {
+	const { MAX_ATTEMPTS, ATTEMPT_WINDOW_DAYS } = getAttemptPolicy();
+
+	return {
+		token,
+		user,
+		userId: user.userId,
+		validUser: user.validUser,
+		contact: user.contact,
+		email: user.email,
+		attemptsRemaining: user.attemptsRemaining,
+		maxAttempts: MAX_ATTEMPTS,
+		attemptWindowDays: ATTEMPT_WINDOW_DAYS,
+		canTakeAssessment: user.attemptsRemaining > 0,
+	};
+};
+
 // POST /api/auth/check-user
 export const checkUser = async (req, res) => {
 	try {
-		const { companyName } = req.body;
+		const { email, mobile } = req.body;
 
-		if (!companyName) {
+		if (!email || !mobile) {
 			return res.status(400).json({
 				success: false,
-				message: "Company name is required",
+				message: "Email and mobile number are required",
 			});
 		}
 
-		const normalizedCompanyName = companyName.trim();
+		const normalizedEmail = email.trim().toLowerCase();
+		const normalizedMobile = mobile.trim();
+
 		const user = await User.findOne({
-			companyName: {
-				$regex: `^${normalizedCompanyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-				$options: "i",
-			},
+			email: normalizedEmail,
+			contact: normalizedMobile,
 		});
 
-		if (user) {
-			user.lastLoginAt = new Date();
-			await user.save();
-
-			const token = createToken(user);
-
+		if (!user) {
 			return res.status(200).json({
 				success: true,
-				message: "User found",
+				message: "User not found",
 				data: {
-					exists: true,
-					token,
-					user,
-					userId: user.userId,
-					validUser: user.validUser,
-					contact: user.contact,
+					exists: false,
+					redirectTo: "/register",
 				},
 			});
 		}
 
+		applyAttemptWindowReset(user);
+		user.lastLoginAt = new Date();
+		await user.save();
+
+		const token = createToken(user);
+
 		return res.status(200).json({
 			success: true,
-			message: "User not found",
+			message: "Login successful",
 			data: {
-				exists: false,
-				redirectTo: "/register",
+				exists: true,
+				...buildAuthPayload(user, token),
 			},
 		});
 	} catch (error) {
@@ -100,16 +118,13 @@ export const sendLoginOtp = async (req, res) => {
 
 		const otp = generateOtp();
 
-		// Send OTP via SMS
 		try {
 			const smsResult = await sendOTP(mobile, otp);
-			console.log(`✅ OTP delivery result:`, smsResult);
+			console.log("OTP delivery result:", smsResult);
 		} catch (smsError) {
-			console.error("⚠️ SMS sending failed, but OTP created in DB:", smsError);
-			// Continue anyway - OTP is saved in DB
+			console.error("SMS sending failed, but OTP created in DB:", smsError);
 		}
 
-		// Save OTP to database
 		await Otp.create({
 			mobile,
 			otp,
@@ -118,19 +133,18 @@ export const sendLoginOtp = async (req, res) => {
 			expiresAt: new Date(Date.now() + 5 * 60 * 1000),
 		});
 
-		console.log(`✅ Login OTP sent to ${mobile} (Code for testing: ${otp})`);
+		console.log(`Login OTP sent to ${mobile} (Code for testing: ${otp})`);
 
 		return res.status(200).json({
 			success: true,
 			message: "OTP sent successfully",
 			data: {
 				contact: mobile,
-				// For development: show last 2 digits only
 				otpHint: `${otp.slice(-2)}XX-`,
 			},
 		});
 	} catch (error) {
-		console.error("❌ Send login OTP error:", error);
+		console.error("Send login OTP error:", error);
 		return res.status(500).json({
 			success: false,
 			message: error.message,
@@ -177,20 +191,8 @@ export const verifyLoginOtp = async (req, res) => {
 		otpDoc.isUsed = true;
 		await otpDoc.save();
 
+		applyAttemptWindowReset(user);
 		user.lastLoginAt = new Date();
-
-		// 🔥 ATTEMPT RESET LOGIC (21 days)
-		if (user.firstAttemptDate) {
-			const diffDays =
-				(new Date() - new Date(user.firstAttemptDate)) / (1000 * 60 * 60 * 24);
-
-			if (diffDays > 21) {
-				user.assessmentAttemptsCount = 0;
-				user.attemptsRemaining = 2;
-				user.firstAttemptDate = null;
-			}
-		}
-
 		await user.save();
 
 		const token = createToken(user);
@@ -198,12 +200,7 @@ export const verifyLoginOtp = async (req, res) => {
 		return res.json({
 			success: true,
 			message: "Login successful",
-			data: {
-				token,
-				user,
-				attemptsRemaining: user.attemptsRemaining,
-				canTakeAssessment: user.attemptsRemaining > 0,
-			},
+			data: buildAuthPayload(user, token),
 		});
 	} catch (error) {
 		return res.status(500).json({

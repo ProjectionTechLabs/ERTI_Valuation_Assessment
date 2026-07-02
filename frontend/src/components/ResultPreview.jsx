@@ -12,10 +12,16 @@ function ResultPreview({
 	isAuthenticated,
 	reportData: initialReportData,
 	onRequestAuthentication,
+	onRetakeRequest,
 }) {
 	const [reportData, setReportData] = useState(initialReportData);
 	const [loading, setLoading] = useState(isAuthenticated && !initialReportData);
 	const [downloadLoading, setDownloadLoading] = useState(false);
+	const [attemptSummary, setAttemptSummary] = useState({
+		attemptsRemaining: user?.attemptsRemaining ?? 0,
+		maxAttempts: user?.maxAttempts ?? 3,
+		attemptWindowDays: user?.attemptWindowDays ?? 21,
+	});
 
 	const reportRef = useRef(null);
 	const headerRef = useRef(null);
@@ -63,15 +69,27 @@ function ResultPreview({
 	}, [initialReportData]);
 
 	useEffect(() => {
-		const fetchLatestResult = async () => {
+		setAttemptSummary({
+			attemptsRemaining: user?.attemptsRemaining ?? 0,
+			maxAttempts: user?.maxAttempts ?? 3,
+			attemptWindowDays: user?.attemptWindowDays ?? 21,
+		});
+	}, [user]);
+
+	useEffect(() => {
+		const fetchResultContext = async () => {
 			if (!isAuthenticated || initialReportData || !user?.token) {
 				setLoading(false);
 				return;
 			}
 
 			try {
-				const res = await api.get("/assessment/history");
-				const latestAttempt = res.data?.data?.[0];
+				const [historyRes, statusRes] = await Promise.all([
+					api.get("/assessment/history"),
+					api.get("/assessment/status"),
+				]);
+				const latestAttempt = historyRes.data?.data?.[0];
+				const statusData = statusRes.data?.data;
 
 				if (latestAttempt) {
 					setReportData(
@@ -91,6 +109,14 @@ function ResultPreview({
 						}),
 					);
 				}
+
+				if (statusData) {
+					setAttemptSummary({
+						attemptsRemaining: statusData.attemptsRemaining ?? 0,
+						maxAttempts: statusData.maxAttempts ?? 3,
+						attemptWindowDays: statusData.attemptWindowDays ?? 21,
+					});
+				}
 			} catch (err) {
 				console.error("Error fetching results:", err);
 			} finally {
@@ -98,7 +124,7 @@ function ResultPreview({
 			}
 		};
 
-		fetchLatestResult();
+		fetchResultContext();
 	}, [initialReportData, isAuthenticated, user]);
 
 	if (loading) {
@@ -242,6 +268,10 @@ function ResultPreview({
 				handleOpenWorkbook={handleOpenWorkbook}
 				downloadLoading={downloadLoading}
 				HeaderImg={HeaderImg}
+				attemptsRemaining={attemptSummary.attemptsRemaining}
+				maxAttempts={attemptSummary.maxAttempts}
+				attemptWindowDays={attemptSummary.attemptWindowDays}
+				onRetakeRequest={onRetakeRequest}
 			/>
 		</div>
 	);

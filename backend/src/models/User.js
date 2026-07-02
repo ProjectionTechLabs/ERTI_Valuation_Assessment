@@ -119,9 +119,9 @@ const userSchema = new mongoose.Schema(
 
 		attemptsRemaining: {
 			type: Number,
-			default: 2,
+			default: 3,
 			min: 0,
-			max: 2,
+			max: 3,
 		},
 
 		firstAttemptDate: {

@@ -1,15 +1,27 @@
 import AssessmentAttempt from "../models/AssessmentAttempt.js";
-import User from "../models/User.js";
+import {
+	applyAttemptWindowReset,
+	getAttemptPolicy,
+} from "../services/attemptPolicy.js";
 
 // GET /api/assessment/status
 export const getAssessmentStatus = async (req, res) => {
 	try {
 		const user = req.user;
+		const wasReset = applyAttemptWindowReset(user);
+
+		if (wasReset) {
+			await user.save();
+		}
+
+		const { MAX_ATTEMPTS, ATTEMPT_WINDOW_DAYS } = getAttemptPolicy();
 
 		return res.json({
 			success: true,
 			data: {
 				attemptsRemaining: user.attemptsRemaining,
+				maxAttempts: MAX_ATTEMPTS,
+				attemptWindowDays: ATTEMPT_WINDOW_DAYS,
 				canTakeAssessment: user.attemptsRemaining > 0,
 			},
 		});
@@ -22,6 +34,11 @@ export const getAssessmentStatus = async (req, res) => {
 export const startAssessment = async (req, res) => {
 	try {
 		const user = req.user;
+		const wasReset = applyAttemptWindowReset(user);
+
+		if (wasReset) {
+			await user.save();
+		}
 
 		if (user.attemptsRemaining <= 0) {
 			return res.status(400).json({
@@ -43,6 +60,11 @@ export const submitAssessment = async (req, res) => {
 	try {
 		const user = req.user;
 		const { answers, totalScore } = req.body;
+		const wasReset = applyAttemptWindowReset(user);
+
+		if (wasReset) {
+			await user.save();
+		}
 
 		if (user.attemptsRemaining <= 0) {
 			return res.status(400).json({
